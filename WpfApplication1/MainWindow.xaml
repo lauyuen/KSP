@@ -1,0 +1,24 @@
+﻿<Window xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:sensor="clr-namespace:Microsoft.Kinect.Toolkit;assembly=Microsoft.Kinect.Toolkit" 
+        xmlns:viewer="clr-namespace:Microsoft.Samples.Kinect.WpfViewers;assembly=Microsoft.Samples.Kinect.WpfViewers"
+        
+        x:Class="WpfApplication1.MainWindow"
+
+        Title="Elder Lab Kinect Project" Height="790" Width="570"
+        Loaded="Window_Loaded">
+    <Grid>
+        <sensor:KinectSensorChooserUI HorizontalAlignment="Center" Margin="0" Name="SensorChooserUI" VerticalAlignment="Top" />
+        <viewer:KinectSettings HorizontalAlignment="Right" Margin="0" Name="kinectSettings" VerticalAlignment="Center">
+            <viewer:KinectSettings.KinectSensorManager>
+                <viewer:KinectSensorManager KinectSensor="{Binding ElementName=SensorChooserUI, Path=KinectSensorChooser.Kinect}" ElevationAngle="-23" SkeletonEnableTrackingInNearMode="False" SkeletonStreamEnabled="True" />
+            </viewer:KinectSettings.KinectSensorManager>
+        </viewer:KinectSettings>
+        <Image Height="240" HorizontalAlignment="Left" Margin="12,12,0,0" Name="colorImage" 
+               Stretch="Fill" VerticalAlignment="Top" Width="320" />
+        <Image Height="240" HorizontalAlignment="Left" Margin="12,258,0,0" Name="depthImage" 
+               Stretch="Fill" VerticalAlignment="Top" Width="320" />
+        <Image Height="240" HorizontalAlignment="Left" Margin="12,504,0,0" Name="backgroundImage" 
+               Stretch="Fill" VerticalAlignment="Top" Width="320" />
+    </Grid>
+</Window>

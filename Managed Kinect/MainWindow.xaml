@@ -1,0 +1,35 @@
+﻿<Window x:Class="Managed_Kinect.MainWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="Elder Lab Kinect" Height="600" Width="600" Loaded="Window_Loaded"
+        
+        xmlns:chooser="clr-namespace:Microsoft.Kinect.Toolkit;assembly=Microsoft.Kinect.Toolkit"
+        xmlns:viewer="clr-namespace:Microsoft.Samples.Kinect.WpfViewers;assembly=Microsoft.Samples.Kinect.WpfViewers" >
+    <Window.Background>
+        <SolidColorBrush />
+    </Window.Background>
+    <Border BorderBrush="Silver" BorderThickness="1" HorizontalAlignment="Center" 
+               Name="border1" VerticalAlignment="Center" CornerRadius="5" Background="White">
+        <Grid>
+            <Button Content="Button" Height="23" Name="button1" Width="75" Margin="428,408,58,88" Click="button1_Click" />
+            <viewer:KinectColorViewer HorizontalAlignment="Left" Margin="12,12,0,268" Name="kinectColorViewer" VerticalAlignment="Top" Width="320" Height="240">
+                <!--<viewer:KinectColorViewer.OpacityMask>
+                    <VisualBrush Visual="{Binding ElementName=mask}"/>
+                </viewer:KinectColorViewer.OpacityMask>-->
+                <viewer:KinectColorViewer.KinectSensorManager>
+                    <viewer:KinectSensorManager KinectSensor="{Binding ElementName=SensorChooserUI, Path=KinectSensorChooser.Kinect}" />
+                </viewer:KinectColorViewer.KinectSensorManager>
+            </viewer:KinectColorViewer>
+
+            <viewer:KinectDepthViewer HorizontalAlignment="Left" Margin="12,0,0,12" Name="kinectDepthViewer" VerticalAlignment="Bottom" 
+                              KinectSensorManager="{Binding ElementName=kinectColorViewer, Path=KinectSensorManager}" Width="320" Height="240">
+            </viewer:KinectDepthViewer>
+            
+            <viewer:KinectSettings HorizontalAlignment="Right" Margin="360,0,0,0" Name="kinectSettings" VerticalAlignment="Center"
+                           KinectSensorManager="{Binding ElementName=kinectColorViewer, Path=KinectSensorManager}" />
+
+            <chooser:KinectSensorChooserUI HorizontalAlignment="Center" Margin="0" Name="SensorChooserUI" VerticalAlignment="Top" />
+
+        </Grid>
+    </Border>
+</Window>
