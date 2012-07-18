@@ -5,7 +5,7 @@
         
         x:Class="WpfApplication1.MainWindow"
 
-        Title="Elder Lab Kinect Project" Height="790" Width="570"
+        Title="Elder Lab Kinect Project" Height="790" Width="903"
         Loaded="Window_Loaded">
     <Grid>
         <sensor:KinectSensorChooserUI HorizontalAlignment="Center" Margin="0" Name="SensorChooserUI" VerticalAlignment="Top" />
@@ -14,13 +14,18 @@
                 <viewer:KinectSensorManager KinectSensor="{Binding ElementName=SensorChooserUI, Path=KinectSensorChooser.Kinect}" ElevationAngle="-23" SkeletonEnableTrackingInNearMode="False" SkeletonStreamEnabled="True" />
             </viewer:KinectSettings.KinectSensorManager>
         </viewer:KinectSettings>
-        <Image Height="240" HorizontalAlignment="Left" Margin="12,12,0,0" Name="colorImage" 
+        <Image Height="240" HorizontalAlignment="Left" Margin="338,12,0,0" Name="depthImage" 
                Stretch="Fill" VerticalAlignment="Top" Width="320" />
-        <Image Height="240" HorizontalAlignment="Left" Margin="12,258,0,0" Name="depthImage" 
+        <Image Height="240" HorizontalAlignment="Left" Margin="12,12,0,0" Name="bgrImage" 
                Stretch="Fill" VerticalAlignment="Top" Width="320" />
-        <Image Height="240" HorizontalAlignment="Left" Margin="12,504,0,0" Name="backgroundImage" 
-               Stretch="Fill" VerticalAlignment="Top" Width="320" DataContext="{Binding}" />
-        <Button Content="Load CV
-                " Height="23" HorizontalAlignment="Left" Margin="407,36,0,0" Name="button_cv" VerticalAlignment="Top" Width="75" Click="button_cv_Click" />
+        <Image Height="240" HorizontalAlignment="Left" Margin="12,258,0,0" Name="bgraImage" 
+               Stretch="Fill" VerticalAlignment="Top" Width="320" />
+        <Image Height="240" HorizontalAlignment="Left" Margin="338,258,0,0" Name="grayImage" 
+               Stretch="Fill" VerticalAlignment="Top" Width="320" />
+        <Image Height="240" HorizontalAlignment="Left" Margin="338,504,0,0" Name="cvbImage" 
+               Stretch="Fill" VerticalAlignment="Top" Width="320" />
+        <Button Content="Load CV" Height="23" HorizontalAlignment="Left" Margin="757,542,0,0" 
+                Name="button_cv" VerticalAlignment="Top" Width="75" Click="button_cv_Click" />
+        
     </Grid>
 </Window>

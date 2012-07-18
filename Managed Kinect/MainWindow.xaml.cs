@@ -12,14 +12,21 @@ using System.Windows.Media.Imaging;
 using System.Windows.Navigation;
 using System.Windows.Shapes;
 
-using Microsoft.Kinect;
-using Microsoft.Kinect.Toolkit;
-using System.Diagnostics;
-using System.IO;
 
 using Emgu.CV;
+using Emgu.CV.CvEnum;
 using Emgu.CV.Structure;
 using Emgu.CV.WPF;
+using Emgu.CV.VideoSurveillance;
+
+using Microsoft.Kinect;
+using Microsoft.Kinect.Toolkit;
+
+using System.Drawing;
+using System.Diagnostics;
+using System.IO;
+using System.Windows.Interop;
+using System.Threading;
 
 namespace WpfApplication1
 {
@@ -52,43 +59,34 @@ namespace WpfApplication1
         /// <summary>
         /// Intermediate storage for the depth data received from the IR sensor
         /// </summary>
-        private byte[] lastDepthPixels;
-
-        /// <summary>
-        /// Bitmap that will hold color information
-        /// </summary>4
-        private WriteableBitmap colorBitmap;
-
-        /// <summary>
-        /// Bitmap that will hold depth information
-        /// </summary>
+        //private byte[] lastDepthPixels;
         private WriteableBitmap depthBitmap;
 
         /// <summary>
         /// Bitmap that will hold depth information
         /// </summary>
-        private WriteableBitmap backgroundBitmap;
+        //private WriteableBitmap backgroundBitmap;
 
         /// <summary>
         /// Stopwatch that determines the time.
         /// </summary>
         private readonly Stopwatch stopwatch = new Stopwatch();
 
-        /// <summary>
-        /// Last remembered timestamp for the last color frame
-        /// </summary>
-        private int prevColorTimeStamp = 0;
-
-        /// <summary>
-        /// Last remembered timestamp for the last depth frame
-        /// </summary>
-        private int prevDepthTimeStamp = 0;
-
         const float MaxDepthDistance = 4095; // max value returned
         const float MinDepthDistance = 850; // min value returned
         const float MaxDepthDistanceOffset = MaxDepthDistance - MinDepthDistance;
 
-        private Image<Bgr, Byte> backgroundImage = new Image<Bgr, byte>(680, 320);
+        private static byte[, ,] data = new byte[480, 640, 4];
+        private Image<Bgra, Byte> rgba_Image = new Image<Bgra, byte>(data);
+        private Image<Bgr, byte> bgr_image;
+        private Image<Gray, byte> gray_image;
+        private Image<Gray, byte> forgroundMask;
+
+        private static BlobTrackerAuto<Bgr> _tracker;
+        private static IBGFGDetector<Bgr> _detector;
+
+        private static MCvFont _font = new MCvFont(Emgu.CV.CvEnum.FONT.CV_FONT_HERSHEY_SIMPLEX, 1.0, 1.0);
+        // private Image<Bgr, Byte> cvBackgroundImage = new Image<Bgr, byte>("ss640.jpg");
 
         #endregion
 
@@ -117,135 +115,85 @@ namespace WpfApplication1
                 // Allocate space to put the pixels we'll receive
                 this.colorPixels = new byte[this.sensorChooser.Kinect.ColorStream.FramePixelDataLength];
 
-                // This is the bitmap we'll display on-screen
-                this.colorBitmap = new WriteableBitmap(this.sensorChooser.Kinect.ColorStream.FrameWidth,
-                    this.sensor.ColorStream.FrameHeight, 96.0, 96.0, PixelFormats.Bgr32, null);
                 this.depthBitmap = new WriteableBitmap(this.sensorChooser.Kinect.DepthStream.FrameWidth,
                     this.sensor.DepthStream.FrameHeight, 96.0, 96.0, PixelFormats.Bgr32, null);
                 //this.backgroundBitmap = new WriteableBitmap(this.sensorChooser.Kinect.DepthStream.FrameWidth,
                 //    this.sensor.ColorStream.FrameHeight, 96.0, 96.0, PixelFormats.Bgr32, null);
 
                 // Set the image we display to point to the bitmap where we'll put the image data
-                this.colorImage.Source = this.colorBitmap;
                 this.depthImage.Source = this.depthBitmap;
-                //this.backgroundImage.Source = this.backgroundBitmap;
 
-                // Add an event handler to be called whenever there is new color frame data
+                // ComponentDispatcher.ThreadIdle += new EventHandler(ComponentDispatcher_ThreadIdle);
                 this.sensor.AllFramesReady += new EventHandler<AllFramesReadyEventArgs>(Kinect_AllFramesReady);
+
+                _detector = new FGDetector<Bgr>(FORGROUND_DETECTOR_TYPE.FGD);
+                _tracker = new BlobTrackerAuto<Bgr>();
+                //ComponentDispatcher.ThreadIdle += new EventHandler(ComponentDispatcher_ThreadIdle);
             }
         }
 
         void Kinect_AllFramesReady(object sender, AllFramesReadyEventArgs e)
         {
-            int currenttime = 0;
             using (DepthImageFrame depthFrame = e.OpenDepthImageFrame())
+            using (ColorImageFrame colorFrame = e.OpenColorImageFrame())
             {
-                using (ColorImageFrame colorFrame = e.OpenColorImageFrame())
+                if (depthFrame != null)
                 {
-                    if (depthFrame != null)
-                    {
-                        // Copy the pixel data from the image to a temporary array
-                        this.depthPixels = GenerateColoredBytes(depthFrame);
-                        //colorFrame.CopyPixelDataTo(this.colorPixels);
+                    // Copy the pixel data from the image to a temporary array
+                    this.depthPixels = GenerateColoredBytes(depthFrame);
+                    //colorFrame.CopyPixelDataTo(this.colorPixels);
 
-                        // Write the pixel data into our bitmap
-                        this.depthBitmap.WritePixels(
-                            new Int32Rect(0, 0, this.depthBitmap.PixelWidth, this.depthBitmap.PixelHeight),
-                            this.depthPixels,
-                            this.depthBitmap.PixelWidth * sizeof(int),
-                            0);
-
-                        // Write the pixel data into our bitmap
-                        //this.backgroundBitmap.WritePixels(
-                        //    new Int32Rect(0, 0, this.colorBitmap.PixelWidth, this.colorBitmap.PixelHeight),
-                        //    this.colorPixels,
-                        //    this.colorBitmap.PixelWidth * sizeof(int),
-                        //    0);
-
-
-                        currenttime = Int32.Parse(depthFrame.Timestamp.ToString());
-
-                        if (depthFrame != null // && this.colorBitmap != null 
-                        && currenttime - this.prevDepthTimeStamp > 3000
-                        && false
-                        )
-                        {
-                            Console.WriteLine(currenttime);
-                            this.prevDepthTimeStamp = currenttime;
-
-                            // create a png bitmap encoder which knows how to save a .png file
-                            BitmapEncoder encoder = new PngBitmapEncoder();
-                            encoder.Frames.Add(BitmapFrame.Create(this.depthBitmap));
-
-                            string myPhotos = Environment.GetFolderPath(Environment.SpecialFolder.MyPictures);
-
-                            string path = System.IO.Path.Combine(myPhotos, "Kinect-d-" + currenttime + ".png");
-
-                            try
-                            {
-                                using (FileStream fs = new FileStream(path, FileMode.Create))
-                                {
-                                    encoder.Save(fs);
-                                }
-
-                                Console.WriteLine(string.Format("Depth Success {0}", path));
-                            }
-                            catch (IOException)
-                            {
-                                Console.WriteLine(string.Format("Depth Failed {0}", path));
-                            }
-                        }
-                    }
-
-                    if (colorFrame != null)
-                    {
-                        // Copy the pixel data from the image to a temporary array
-                        colorFrame.CopyPixelDataTo(this.colorPixels);
-
-                        // Write the pixel data into our bitmap
-                        this.colorBitmap.WritePixels(
-                            new Int32Rect(0, 0, this.colorBitmap.PixelWidth, this.colorBitmap.PixelHeight),
-                            this.colorPixels,
-                            this.colorBitmap.PixelWidth * sizeof(int),
-                            0);
-
-                        currenttime = Int32.Parse(colorFrame.Timestamp.ToString());
-
-                        if (colorFrame != null // && this.colorBitmap != null 
-                            && currenttime - this.prevColorTimeStamp > 3000
-                            && false
-                            )
-                        {
-                            // Copy the pixel data from the image to a temporary array
-                            colorFrame.CopyPixelDataTo(this.colorPixels);
-
-                            Console.WriteLine(currenttime);
-                            this.prevColorTimeStamp = currenttime;
-
-                            // create a png bitmap encoder which knows how to save a .png file
-                            BitmapEncoder encoder = new PngBitmapEncoder();
-                            encoder.Frames.Add(BitmapFrame.Create(this.colorBitmap));
-
-                            string myPhotos = Environment.GetFolderPath(Environment.SpecialFolder.MyPictures);
-
-                            string path = System.IO.Path.Combine(myPhotos, "Kinect-c-" + currenttime + ".png");
-
-                            try
-                            {
-                                using (FileStream fs = new FileStream(path, FileMode.Create))
-                                {
-                                    encoder.Save(fs);
-                                }
-
-                                Console.WriteLine(string.Format("Color Success {0}", path));
-                            }
-                            catch (IOException)
-                            {
-                                Console.WriteLine(string.Format("Color Failed {0}", path));
-                            }
-                        }
-                    }
+                    // Write the pixel data into our bitmap
+                    this.depthBitmap.WritePixels(
+                        new Int32Rect(0, 0, this.depthBitmap.PixelWidth, this.depthBitmap.PixelHeight),
+                        this.depthPixels,
+                        this.depthBitmap.PixelWidth * sizeof(int),
+                        0);
                 }
+
+                if (colorFrame != null)
+                {
+                    // Copy the pixel data from the image to a temporary array
+                    // colorFrame.CopyPixelDataTo(this.colorPixels);
+                    colorFrame.CopyPixelDataTo(this.colorPixels);
+                    rgba_Image.Bytes = colorPixels;
+
+                    // _detector = new FGDetector<Bgr>(FORGROUND_DETECTOR_TYPE.MOG);
+                    // _tracker = new BlobTrackerAuto<Bgr>();
+
+                    bgr_image = rgba_Image.Convert<Bgr, byte>();
+                    this.bgrImage.Source = BitmapSourceConvert.ToBitmapSource(bgr_image);
+
+                    System.Windows.Threading.Dispatcher.CurrentDispatcher.BeginInvoke(
+                        System.Windows.Threading.DispatcherPriority.ContextIdle,
+                        new Action(ProcessImage));
+
+
+                    //gray_image = rgba_Image.Convert<Gray, byte>();
+                    //this.grayImage.Source = BitmapSourceConvert.ToBitmapSource(gray_image);
+                    //this.cvbImage.Source = BitmapSourceConvert.ToBitmapSource(forgroundMask);
+                }
+            }
+        }
+
+        void ProcessImage()
+        {
+            if (this.bgr_image != null)
+            {
+                Console.WriteLine("Processing Image");
+                this.bgr_image._SmoothGaussian(3);
+                _detector.Update(this.bgr_image);
+                this.forgroundMask = _detector.ForgroundMask;
+
+                _tracker.Process(bgr_image, forgroundMask);
+
+                foreach (MCvBlob blob in _tracker)
+                {
+                    bgr_image.Draw((System.Drawing.Rectangle)blob, new Bgr(255.0, 255.0, 255.0), 2);
+                    bgr_image.Draw(blob.ID.ToString(), ref _font, System.Drawing.Point.Round(blob.Center), new Bgr(255.0, 255.0, 255.0));
+                }
+
+                this.cvbImage.Source = BitmapSourceConvert.ToBitmapSource(forgroundMask);
             }
         }
 
@@ -339,11 +287,7 @@ namespace WpfApplication1
 
         private void button_cv_Click(object sender, RoutedEventArgs e)
         {
-            
-            MCvFont f = new MCvFont(Emgu.CV.CvEnum.FONT.CV_FONT_HERSHEY_PLAIN, 3.0, 3.0);
-            this.image.Draw("Hello, world", ref f, new System.Drawing.Point(10, 50), new Bgr(255.0, 0.0, 0.0));
 
-            this.backgroundImage.Source = BitmapSourceConvert.ToBitmapSource(image);
             
         }
 
