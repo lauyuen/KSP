@@ -119,7 +119,7 @@ namespace WpfApplication1
                     this.sensor.DepthStream.FrameHeight, 96.0, 96.0, PixelFormats.Bgr32, null);
                 //this.backgroundBitmap = new WriteableBitmap(this.sensorChooser.Kinect.DepthStream.FrameWidth,
                 //    this.sensor.ColorStream.FrameHeight, 96.0, 96.0, PixelFormats.Bgr32, null);
-
+                
                 // Set the image we display to point to the bitmap where we'll put the image data
                 this.depthImage.Source = this.depthBitmap;
 
@@ -134,6 +134,10 @@ namespace WpfApplication1
 
         void Kinect_AllFramesReady(object sender, AllFramesReadyEventArgs e)
         {
+            System.Windows.Threading.Dispatcher.CurrentDispatcher.BeginInvoke(
+                System.Windows.Threading.DispatcherPriority.ApplicationIdle,
+                new Action(ProcessImage));
+
             using (DepthImageFrame depthFrame = e.OpenDepthImageFrame())
             using (ColorImageFrame colorFrame = e.OpenColorImageFrame())
             {
@@ -164,14 +168,10 @@ namespace WpfApplication1
                     bgr_image = rgba_Image.Convert<Bgr, byte>();
                     this.bgrImage.Source = BitmapSourceConvert.ToBitmapSource(bgr_image);
 
-                    System.Windows.Threading.Dispatcher.CurrentDispatcher.BeginInvoke(
-                        System.Windows.Threading.DispatcherPriority.ContextIdle,
-                        new Action(ProcessImage));
 
-
-                    //gray_image = rgba_Image.Convert<Gray, byte>();
-                    //this.grayImage.Source = BitmapSourceConvert.ToBitmapSource(gray_image);
-                    //this.cvbImage.Source = BitmapSourceConvert.ToBitmapSource(forgroundMask);
+                    gray_image = rgba_Image.Convert<Gray, byte>();
+                    this.grayImage.Source = BitmapSourceConvert.ToBitmapSource(gray_image);
+                    // this.cvbImage.Source = BitmapSourceConvert.ToBitmapSource(forgroundMask);
                 }
             }
         }
@@ -196,6 +196,27 @@ namespace WpfApplication1
                 this.cvbImage.Source = BitmapSourceConvert.ToBitmapSource(forgroundMask);
             }
         }
+
+        //void ProcessImage()
+        //{
+        //    if (this.gray_image != null)
+        //    {
+        //        Console.WriteLine("Processing Image");
+        //        this.gray_image._SmoothGaussian(3);
+        //        _detector.Update(this.gray_image);
+        //        this.forgroundMask = _detector.ForgroundMask;
+
+        //        _tracker.Process(gray_image, forgroundMask);
+
+        //        foreach (MCvBlob blob in _tracker)
+        //        {
+        //            gray_image.Draw((System.Drawing.Rectangle)blob, new Bgr(255.0, 255.0, 255.0), 2);
+        //            gray_image.Draw(blob.ID.ToString(), ref _font, System.Drawing.Point.Round(blob.Center), new Bgr(255.0, 255.0, 255.0));
+        //        }
+
+        //        this.cvbImage.Source = BitmapSourceConvert.ToBitmapSource(forgroundMask);
+        //    }
+        //}
 
         /// <summary>
         /// Method to convert native depth data from the sensor to colored pixels
