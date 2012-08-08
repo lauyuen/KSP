@@ -25,10 +25,12 @@ using Microsoft.Kinect.Toolkit;
 using System.Drawing;
 using System.Diagnostics;
 using System.IO;
-using System.Windows.Interop;
+// using System.Windows.Interop;
 using System.Threading;
+using System.Windows.Threading;
+using System.Threading.Tasks;
 
-namespace WpfApplication1
+namespace Managed_Kinect
 {
     /// <summary>
     /// Interaction logic for MainWindow.xaml
@@ -40,53 +42,42 @@ namespace WpfApplication1
         /// KinectSensorChooser used to manage kinect sensors.
         /// </summary>
         private readonly KinectSensorChooser sensorChooser = new KinectSensorChooser();
-
-        /// <summary>
-        /// KinectSensorChooser used to manage kinect sensors.
-        /// </summary>
-        private readonly KinectSensor sensor;
-
-        /// <summary>
-        /// Intermediate storage for the color data received from the camera
-        /// </summary>
-        private byte[] colorPixels;
-
-        /// <summary>
-        /// Intermediate storage for the depth data received from the IR sensor
-        /// </summary>
-        private byte[] depthPixels;
-
-        /// <summary>
-        /// Intermediate storage for the depth data received from the IR sensor
-        /// </summary>
-        //private byte[] lastDepthPixels;
-        private WriteableBitmap depthBitmap;
-
-        /// <summary>
-        /// Bitmap that will hold depth information
-        /// </summary>
-        //private WriteableBitmap backgroundBitmap;
+        private readonly KinectSensor sensorOne;
 
         /// <summary>
         /// Stopwatch that determines the time.
         /// </summary>
         private readonly Stopwatch stopwatch = new Stopwatch();
 
-        const float MaxDepthDistance = 4095; // max value returned
-        const float MinDepthDistance = 850; // min value returned
-        const float MaxDepthDistanceOffset = MaxDepthDistance - MinDepthDistance;
+        private Byte[] rawColorData = new Byte[KinectUtility.BGRA_RES];
+        private short[] rawDepthData = new short[KinectUtility.LUM_RES];
+        private short[] sDepthData = new short[KinectUtility.LUM_RES];
+        private short[] bgDepthData = new short[KinectUtility.LUM_RES];
+        private short[] fgDepthData = new short[KinectUtility.LUM_RES];
 
-        private static byte[, ,] data = new byte[480, 640, 4];
-        private Image<Bgra, Byte> rgba_Image = new Image<Bgra, byte>(data);
-        private Image<Bgr, byte> bgr_image;
-        private Image<Gray, byte> gray_image;
-        private Image<Gray, byte> forgroundMask;
+        private Byte[] cPixels = new Byte[KinectUtility.BGR_RES];
+        private Byte[] dPixels = new Byte[KinectUtility.LUM_RES];
+        private Byte[] dsPixels = new Byte[KinectUtility.LUM_RES];
+        private Byte[] fgPixels = new Byte[KinectUtility.LUM_RES];
+        private Byte[] bgPixels = new Byte[KinectUtility.LUM_RES];
 
-        private static BlobTrackerAuto<Bgr> _tracker;
-        private static IBGFGDetector<Bgr> _detector;
+
+        private Image<Bgr, Byte> bgr_image = new Image<Bgr, byte>(KinectUtility.CDATA);
+        private Image<Gray, Byte> depth_image = new Image<Gray, byte>(KinectUtility.DDATA);
+        private Image<Gray, Byte> fg_image = new Image<Gray, byte>(KinectUtility.DDATA);
+        private Image<Gray, Byte> bg_image = new Image<Gray, byte>(KinectUtility.DDATA);
+
+        // Features
+        private static bool dProcessFlag = true;
+        private static bool cProcessFlag = false;
+        private static bool dSmootherFlag = false;
+
+        private static bool dSubtractionFlag = false;
+
+        private static float alpha = 0.06f;
+        private static int depthC = KinectUtility.MaxDepthDistance;
 
         private static MCvFont _font = new MCvFont(Emgu.CV.CvEnum.FONT.CV_FONT_HERSHEY_SIMPLEX, 1.0, 1.0);
-        // private Image<Bgr, Byte> cvBackgroundImage = new Image<Bgr, byte>("ss640.jpg");
 
         #endregion
 
@@ -94,13 +85,18 @@ namespace WpfApplication1
         public MainWindow()
         {
             InitializeComponent();
-    
-            // This will handle Kinect Errors, plug and play, and kinect choosing.
             this.SensorChooserUI.KinectSensorChooser = sensorChooser;
-            this.sensor = KinectSensor.KinectSensors[0];
-            //this.sensorChooser.Kinect = sensorChooser;
+            this.sensorOne = KinectSensor.KinectSensors[0];
             this.sensorChooser.Start();
-            
+            Parallel.For(0, KinectUtility.RESOLUTION,
+                (i) =>
+                {
+                    sDepthData[i] = 0;
+                    bgDepthData[i] = 0;
+                    fgDepthData[i] = 0;
+                }
+            );
+
         }
 
         /// <summary>
@@ -112,188 +108,172 @@ namespace WpfApplication1
         {
             if (this.sensorChooser.Kinect != null)
             {
-                // Allocate space to put the pixels we'll receive
-                this.colorPixels = new byte[this.sensorChooser.Kinect.ColorStream.FramePixelDataLength];
-
-                this.depthBitmap = new WriteableBitmap(this.sensorChooser.Kinect.DepthStream.FrameWidth,
-                    this.sensor.DepthStream.FrameHeight, 96.0, 96.0, PixelFormats.Bgr32, null);
-                //this.backgroundBitmap = new WriteableBitmap(this.sensorChooser.Kinect.DepthStream.FrameWidth,
-                //    this.sensor.ColorStream.FrameHeight, 96.0, 96.0, PixelFormats.Bgr32, null);
-                
-                // Set the image we display to point to the bitmap where we'll put the image data
-                this.depthImage.Source = this.depthBitmap;
-
-                // ComponentDispatcher.ThreadIdle += new EventHandler(ComponentDispatcher_ThreadIdle);
-                this.sensor.AllFramesReady += new EventHandler<AllFramesReadyEventArgs>(Kinect_AllFramesReady);
-
-                _detector = new FGDetector<Bgr>(FORGROUND_DETECTOR_TYPE.FGD);
-                _tracker = new BlobTrackerAuto<Bgr>();
-                //ComponentDispatcher.ThreadIdle += new EventHandler(ComponentDispatcher_ThreadIdle);
+                this.sensorOne.DepthFrameReady += new EventHandler<DepthImageFrameReadyEventArgs>(sensorOne_DepthFrameReady);
+                this.sensorOne.ColorFrameReady += new EventHandler<ColorImageFrameReadyEventArgs>(sensorOne_ColorFrameReady);
             }
         }
 
-        void Kinect_AllFramesReady(object sender, AllFramesReadyEventArgs e)
+        void sensorOne_ColorFrameReady(object sender, ColorImageFrameReadyEventArgs e)
         {
-            System.Windows.Threading.Dispatcher.CurrentDispatcher.BeginInvoke(
-                System.Windows.Threading.DispatcherPriority.ApplicationIdle,
-                new Action(ProcessImage));
-
-            using (DepthImageFrame depthFrame = e.OpenDepthImageFrame())
             using (ColorImageFrame colorFrame = e.OpenColorImageFrame())
             {
-                if (depthFrame != null)
+                if (colorFrame != null && cProcessFlag)
                 {
-                    // Copy the pixel data from the image to a temporary array
-                    this.depthPixels = GenerateColoredBytes(depthFrame);
-                    //colorFrame.CopyPixelDataTo(this.colorPixels);
+                    #region Color Processing
+                    colorFrame.CopyPixelDataTo(this.rawColorData);
+                    Parallel.For(0, KinectUtility.RESOLUTION,
+                        (c_i) =>
+                        {
+                            int bgrIndex = (int)c_i * 3;
+                            int bgraIndex = (int)c_i * 4;
+                            this.cPixels[bgrIndex++] = this.rawColorData[bgraIndex++];
+                            this.cPixels[bgrIndex++] = this.rawColorData[bgraIndex++];
+                            this.cPixels[bgrIndex] = this.rawColorData[bgraIndex];
+                        }
+                    );
+                    #endregion
 
-                    // Write the pixel data into our bitmap
-                    this.depthBitmap.WritePixels(
-                        new Int32Rect(0, 0, this.depthBitmap.PixelWidth, this.depthBitmap.PixelHeight),
-                        this.depthPixels,
-                        this.depthBitmap.PixelWidth * sizeof(int),
-                        0);
-                }
-
-                if (colorFrame != null)
-                {
-                    // Copy the pixel data from the image to a temporary array
-                    // colorFrame.CopyPixelDataTo(this.colorPixels);
-                    colorFrame.CopyPixelDataTo(this.colorPixels);
-                    rgba_Image.Bytes = colorPixels;
-
-                    // _detector = new FGDetector<Bgr>(FORGROUND_DETECTOR_TYPE.MOG);
-                    // _tracker = new BlobTrackerAuto<Bgr>();
-
-                    bgr_image = rgba_Image.Convert<Bgr, byte>();
-                    this.bgrImage.Source = BitmapSourceConvert.ToBitmapSource(bgr_image);
-
-
-                    gray_image = rgba_Image.Convert<Gray, byte>();
-                    this.grayImage.Source = BitmapSourceConvert.ToBitmapSource(gray_image);
-                    // this.cvbImage.Source = BitmapSourceConvert.ToBitmapSource(forgroundMask);
+                    this.bgr_image.Bytes = cPixels;
+                    this.ImageL1.Source = BitmapSourceConvert.ToBitmapSource(this.bgr_image);
+                    this.CFPS.Content = KinectUtility.CalculateColorFrameRate().ToString();
+                    //bgr_image.Save("c:\\Users\\elderlab\\sitting\\test-"+imgname.ToString()+".png");
+                    //this.imgname++;
                 }
             }
         }
 
-        void ProcessImage()
+        void sensorOne_DepthFrameReady(object sender, DepthImageFrameReadyEventArgs e)
         {
-            if (this.bgr_image != null)
+            using (DepthImageFrame depthFrame = e.OpenDepthImageFrame())
             {
-                Console.WriteLine("Processing Image");
-                this.bgr_image._SmoothGaussian(3);
-                _detector.Update(this.bgr_image);
-                this.forgroundMask = _detector.ForgroundMask;
-
-                _tracker.Process(bgr_image, forgroundMask);
-
-                foreach (MCvBlob blob in _tracker)
+                if (depthFrame != null && dProcessFlag)
                 {
-                    bgr_image.Draw((System.Drawing.Rectangle)blob, new Bgr(255.0, 255.0, 255.0), 2);
-                    bgr_image.Draw(blob.ID.ToString(), ref _font, System.Drawing.Point.Round(blob.Center), new Bgr(255.0, 255.0, 255.0));
+                    processDepthData(depthFrame);
+                    if (dSubtractionFlag)
+                    {
+                        this.fg_image.Bytes = fgPixels;
+                        this.bg_image.Bytes = bgPixels;
+                        this.ImageL1.Source = BitmapSourceConvert.ToBitmapSource(this.fg_image);
+                        this.ImageL2.Source = BitmapSourceConvert.ToBitmapSource(this.bg_image);
+                    }
+                    else
+                    {
+                        this.depth_image.Bytes = dSmootherFlag ? dsPixels : dPixels;
+                        this.ImageL2.Source = BitmapSourceConvert.ToBitmapSource(this.depth_image);
+                    }
+                    this.DFPS.Content = KinectUtility.CalculateDepthFrameRate().ToString();
+                    //depth_image.Save("c:\\Users\\elderlab\\sittingd\\test-" + imgname.ToString() + ".png");
+                    //this.imgname++;
                 }
 
-                this.cvbImage.Source = BitmapSourceConvert.ToBitmapSource(forgroundMask);
             }
         }
 
         //void ProcessImage()
         //{
-        //    if (this.gray_image != null)
+        //    if (this.bgr_image != null)
         //    {
-        //        Console.WriteLine("Processing Image");
-        //        this.gray_image._SmoothGaussian(3);
-        //        _detector.Update(this.gray_image);
+        //        // Thread.Sleep(10000);
+        //        if (Thread.CurrentThread.Name == null)
+        //        {
+        //            Thread.CurrentThread.Name = "Processing Image";
+        //        }
+        //        this.bgr_image._SmoothGaussian(3);
+        //        _detector.Update(this.bgr_image);
         //        this.forgroundMask = _detector.ForgroundMask;
 
-        //        _tracker.Process(gray_image, forgroundMask);
+        //        _tracker.Process(bgr_image, forgroundMask);
 
         //        foreach (MCvBlob blob in _tracker)
         //        {
-        //            gray_image.Draw((System.Drawing.Rectangle)blob, new Bgr(255.0, 255.0, 255.0), 2);
-        //            gray_image.Draw(blob.ID.ToString(), ref _font, System.Drawing.Point.Round(blob.Center), new Bgr(255.0, 255.0, 255.0));
+        //            Console.WriteLine(blob.Center.X.ToString() + " " + blob.Center.Y.ToString());
+        //            bgr_image.Draw((System.Drawing.Rectangle)blob, new Bgr(255.0, 255.0, 255.0), 2);
+        //            bgr_image.Draw(blob.ID.ToString(), ref _font, System.Drawing.Point.Round(blob.Center), new Bgr(255.0, 255.0, 255.0));
         //        }
 
-        //        this.cvbImage.Source = BitmapSourceConvert.ToBitmapSource(forgroundMask);
+        //        this.cvnImage.Dispatcher.Invoke(
+        //            new Action(() => this.cvnImage.Source = BitmapSourceConvert.ToBitmapSource(bgr_image)),
+        //            DispatcherPriority.ApplicationIdle, null);
+        //        this.cvbImage.Dispatcher.Invoke(
+        //            new Action(() => this.cvbImage.Source = BitmapSourceConvert.ToBitmapSource(forgroundMask)),
+        //            DispatcherPriority.ApplicationIdle, null);
+        //        // this.cvnImage.Source = BitmapSourceConvert.ToBitmapSource(bgr_image);
+        //        // this.cvnImage.Source = BitmapSourceConvert.ToBitmapSource(_detector.BackgroundMask);
+        //        // this.cvbImage.Source = BitmapSourceConvert.ToBitmapSource(forgroundMask);
         //    }
+        //}
+
+
+        ///// <summary>
+        ///// Method to convert native depth data from the sensor to colored pixels
+        ///// </summary>
+        ///// <param name="depthFrame"> Depth frame data from the sensor</param>
+        //// private byte[] getColorBytes(ColorImageFrame colorFrame)
+        //private void processColorData(ColorImageFrame colorFrame)
+        //{
+        //    colorFrame.CopyPixelDataTo(this.rawColorData);
+        //    Parallel.For(0, RESOLUTION,
+        //        (colorIndex) =>
+        //        {
+        //            int bgrIndex = (int)colorIndex * 3;
+        //            int bgraIndex = (int)colorIndex * 4;
+        //            this.cPixels[bgrIndex++] = this.rawColorData[bgraIndex++];
+        //            this.cPixels[bgrIndex++] = this.rawColorData[bgraIndex++];
+        //            this.cPixels[bgrIndex] = this.rawColorData[bgraIndex];
+        //        }
+        //    );
         //}
 
         /// <summary>
         /// Method to convert native depth data from the sensor to colored pixels
         /// </summary>
         /// <param name="depthFrame"> Depth frame data from the sensor</param>
-        private byte[] GenerateColoredBytes(DepthImageFrame depthFrame)
+        private void processDepthData(DepthImageFrame depthFrame)
         {
-            //get the raw data from kinect with the depth for every pixel
-            short[] rawDepthData = new short[depthFrame.PixelDataLength];
             depthFrame.CopyPixelDataTo(rawDepthData);
 
-            //use depthFrame to create the image to display on-screen
-            //depthFrame contains color information for all pixels in image
-            //Height x Width x 4 (Red, Green, Blue, empty byte)
-            Byte[] pixels = new byte[depthFrame.Height * depthFrame.Width * 4];
-
-            //Bgr32  - Blue, Green, Red, empty byte
-            //Bgra32 - Blue, Green, Red, transparency 
-            //You must set transparency for Bgra as .NET defaults a byte to 0 = fully transparent
-
-            //hardcoded locations to Blue, Green, Red (BGR) index positions       
-            const int BlueIndex = 0;
-            const int GreenIndex = 1;
-            const int RedIndex = 2;
-
-            int runningAverage = 0;
-
-            //loop through all distances
-            //pick a RGB color based on distance
-            for (int depthIndex = 0, colorIndex = 0;
-                depthIndex < rawDepthData.Length && colorIndex < pixels.Length;
-                depthIndex++, colorIndex += 4)
-            {
-                int y = depthIndex / 640;
-                int x = depthIndex % 640;
-                
-                //get the player (requires skeleton tracking enabled for values)
-                int player = rawDepthData[depthIndex] & DepthImageFrame.PlayerIndexBitmask;
-
-                //gets the depth value
-                int depth = rawDepthData[depthIndex] >> DepthImageFrame.PlayerIndexBitmaskWidth;
-
-                //equal coloring for monochromatic histogram
-                byte intensity = CalculateIntensityFromDepth(depth);
-                //intensity = (byte)(((int)intensity > 225) ? intensity : (intensity + 30));
-                pixels[colorIndex + BlueIndex] = intensity;
-                pixels[colorIndex + GreenIndex] = intensity;
-                pixels[colorIndex + RedIndex] = intensity;
-                
-                if ( 310 < x && x < 330 &&
-                     230 < y && y < 250 )
+            Parallel.For(0, KinectUtility.RESOLUTION,
+                (d_i) =>
                 {
-                    runningAverage += depth;
-                    pixels[colorIndex + BlueIndex] = 0;
+                    short depth = (short)(rawDepthData[d_i] >> DepthImageFrame.PlayerIndexBitmaskWidth);
+
+                    if (dSmootherFlag)
+                    {
+                        if (depth > 0)
+                        {
+                            sDepthData[d_i] = (short)((alpha * depth + (1 - alpha) * sDepthData[d_i]));
+
+                        }
+                        dsPixels[d_i] = KinectUtility.getDepthBGBytes(sDepthData[d_i]);
+                    }
+                    else if (dSubtractionFlag)
+                    {
+                        if (depth > 0)
+                        {
+                            if (bgDepthData[d_i] - depth > 64)
+                            {
+                                // Foreground
+                                fgDepthData[d_i] = depth;
+                                bgDepthData[d_i] = bgDepthData[d_i];
+                            }
+                            else
+                            {
+                                fgDepthData[d_i] = 0;
+                                bgDepthData[d_i] = (short)((alpha * depth + (1 - alpha) * bgDepthData[d_i]));
+                            }
+                        }
+                        fgPixels[d_i] = KinectUtility.getDepthBGBytes(fgDepthData[d_i]);
+                        bgPixels[d_i] = KinectUtility.getDepthBGBytes(bgDepthData[d_i]);
+                    }
+                    else
+                    {
+                        dPixels[d_i] = KinectUtility.getDepthBGBytes(depth);
+                    }
                 }
-
-                ////Color all players "gold"
-                ////(byte)(intensity - 30)
-                //if (player > 0)
-                //{
-                //    pixels[colorIndex + BlueIndex] = Colors.Gold.B;
-                //    pixels[colorIndex + GreenIndex] = Colors.Gold.G;
-                //    pixels[colorIndex + RedIndex] = Colors.Gold.R;
-                //}
-
-            }
-            Console.WriteLine((float)(runningAverage/400)/1000);
-
-            return pixels;
+            );
         }
 
-       public static byte CalculateIntensityFromDepth(int distance)
-        {
-            //formula for calculating monochrome intensity for histogram
-            return (byte)(255 - (255 * Math.Max(distance - MinDepthDistance, 0)
-                / (MaxDepthDistanceOffset)));
-        }
+
 
         /// <summary>
         /// Event handler for window closing event.
@@ -308,10 +288,30 @@ namespace WpfApplication1
 
         private void button_cv_Click(object sender, RoutedEventArgs e)
         {
-
-            
+            //var displayMap = new PlanarMap();
+            //displayMap.Show();
+            //this.thread = new Thread(ProcessImage);
+            //thread.Start();
+        }
+        
+        private void check_depth_smoother_Click(object sender, RoutedEventArgs e)
+        {
+            dSmootherFlag = dSmootherFlag ? false : true;
         }
 
+        private void check_color_Click(object sender, RoutedEventArgs e)
+        {
+            cProcessFlag = cProcessFlag ? false : true;
+        }
 
+        private void check_depth_Click(object sender, RoutedEventArgs e)
+        {
+            dProcessFlag = dProcessFlag ? false : true;
+        }
+
+        private void check_depth_subtraction_Click(object sender, RoutedEventArgs e)
+        {
+            dSubtractionFlag = dSubtractionFlag ? false : true;
+        }
     }
 }

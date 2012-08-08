@@ -3,29 +3,40 @@
         xmlns:sensor="clr-namespace:Microsoft.Kinect.Toolkit;assembly=Microsoft.Kinect.Toolkit" 
         xmlns:viewer="clr-namespace:Microsoft.Samples.Kinect.WpfViewers;assembly=Microsoft.Samples.Kinect.WpfViewers"
         
-        x:Class="WpfApplication1.MainWindow"
+        x:Class="Managed_Kinect.MainWindow"
 
-        Title="Elder Lab Kinect Project" Height="790" Width="903"
+        Title="Elder Lab Kinect Project" Height="1170" Width="1055"
         Loaded="Window_Loaded">
     <Grid>
-        <sensor:KinectSensorChooserUI HorizontalAlignment="Center" Margin="0" Name="SensorChooserUI" VerticalAlignment="Top" />
-        <viewer:KinectSettings HorizontalAlignment="Right" Margin="0" Name="kinectSettings" VerticalAlignment="Center">
+        <sensor:KinectSensorChooserUI HorizontalAlignment="Center" Margin="756,0,84,0" Name="SensorChooserUI" VerticalAlignment="Top" />
+        <viewer:KinectSettings HorizontalAlignment="Right" Margin="0,747,175,195" Name="kinectSettings" VerticalAlignment="Center">
             <viewer:KinectSettings.KinectSensorManager>
                 <viewer:KinectSensorManager KinectSensor="{Binding ElementName=SensorChooserUI, Path=KinectSensorChooser.Kinect}" ElevationAngle="-23" SkeletonEnableTrackingInNearMode="False" SkeletonStreamEnabled="True" />
             </viewer:KinectSettings.KinectSensorManager>
         </viewer:KinectSettings>
-        <Image Height="240" HorizontalAlignment="Left" Margin="338,12,0,0" Name="depthImage" 
+        <Image Height="480" HorizontalAlignment="Left" Margin="12,12,0,0" Name="ImageL1" 
+               Stretch="Fill" VerticalAlignment="Top" Width="640" />
+        <Image Height="480" HorizontalAlignment="Left" Margin="12,498,0,0" Name="ImageL2" 
+               Stretch="Fill" VerticalAlignment="Top" Width="640" />
+        <Image Height="240" HorizontalAlignment="Left" Margin="658,12,0,0" Name="ImageS1" 
                Stretch="Fill" VerticalAlignment="Top" Width="320" />
-        <Image Height="240" HorizontalAlignment="Left" Margin="12,12,0,0" Name="bgrImage" 
+        <Image Height="240" HorizontalAlignment="Left" Margin="658,504,0,0" Name="ImageS2" 
                Stretch="Fill" VerticalAlignment="Top" Width="320" />
-        <Image Height="240" HorizontalAlignment="Left" Margin="12,258,0,0" Name="bgraImage" 
+        <Image Height="240" HorizontalAlignment="Left" Margin="658,258,0,0" Name="ImageS3" 
                Stretch="Fill" VerticalAlignment="Top" Width="320" />
-        <Image Height="240" HorizontalAlignment="Left" Margin="338,258,0,0" Name="grayImage" 
-               Stretch="Fill" VerticalAlignment="Top" Width="320" />
-        <Image Height="240" HorizontalAlignment="Left" Margin="338,504,0,0" Name="cvbImage" 
-               Stretch="Fill" VerticalAlignment="Top" Width="320" />
-        <Button Content="Load CV" Height="23" HorizontalAlignment="Left" Margin="757,542,0,0" 
+        <Button Content="Load Map" Height="23" HorizontalAlignment="Left" Margin="906,860,0,0" 
                 Name="button_cv" VerticalAlignment="Top" Width="75" Click="button_cv_Click" />
-        
+        <Label Content="DFPS" Height="28" HorizontalAlignment="Left" Margin="941,768,0,0" Name="DFPS" VerticalAlignment="Top" />
+        <Label Content="CFPS" Height="28" HorizontalAlignment="Left" Margin="942,747,0,0" Name="CFPS" VerticalAlignment="Top" />
+        <CheckBox Content="Color Data" Height="16" HorizontalAlignment="Left" Margin="864,914,0,0" Name="check_color" 
+                  VerticalAlignment="Top" IsChecked="True" Click="check_color_Click"/>
+        <CheckBox Content="Depth Data" Height="16" HorizontalAlignment="Left" Margin="864,936,0,0" Name="check_depth" 
+                  VerticalAlignment="Top" IsChecked="True" Click="check_depth_Click"/>
+        <CheckBox Content="Depth Smoother" Height="16" HorizontalAlignment="Left" Margin="864,958,0,0" Name="check_depth_smoother" 
+                  VerticalAlignment="Top" Click="check_depth_smoother_Click"/>
+        <CheckBox Content="Depth Subtraction" Height="16" HorizontalAlignment="Left" Margin="864,980,0,0" Name="check_depth_subtration" 
+                  VerticalAlignment="Top" Click="check_depth_subtraction_Click"/>
+        <Label Content="Color FPS:" Height="28" HorizontalAlignment="Left" Margin="864,747,0,0" Name="label1" VerticalAlignment="Top" />
+        <Label Content="Depth FPS:" Height="28" HorizontalAlignment="Left" Margin="864,768,0,0" Name="label2" VerticalAlignment="Top" />
     </Grid>
 </Window>
