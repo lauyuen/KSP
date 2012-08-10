@@ -51,9 +51,12 @@ namespace Managed_Kinect
 
         private Byte[] rawColorData = new Byte[KinectUtility.BGRA_RES];
         private short[] rawDepthData = new short[KinectUtility.LUM_RES];
-        private short[] sDepthData = new short[KinectUtility.LUM_RES];
-        private short[] bgDepthData = new short[KinectUtility.LUM_RES];
-        private short[] fgDepthData = new short[KinectUtility.LUM_RES];
+        private ushort[] sDepthData = new ushort[KinectUtility.LUM_RES];
+        private ushort[] bgDepthData = new ushort[KinectUtility.LUM_RES];
+        private ushort[] fgDepthData = new ushort[KinectUtility.LUM_RES];
+
+        private short[] mu = new short[KinectUtility.LUM_RES];
+        private short[] sigma = new short[KinectUtility.LUM_RES];
 
         private Byte[] cPixels = new Byte[KinectUtility.BGR_RES];
         private Byte[] dPixels = new Byte[KinectUtility.LUM_RES];
@@ -74,8 +77,10 @@ namespace Managed_Kinect
 
         private static bool dSubtractionFlag = false;
 
+        private static uint imgname = 0;
+
         private static float alpha = 0.06f;
-        private static int depthC = KinectUtility.MaxDepthDistance;
+        // private static int depthC = KinectUtility.MaxDepthDistance;
 
         private static MCvFont _font = new MCvFont(Emgu.CV.CvEnum.FONT.CV_FONT_HERSHEY_SIMPLEX, 1.0, 1.0);
 
@@ -91,9 +96,9 @@ namespace Managed_Kinect
             Parallel.For(0, KinectUtility.RESOLUTION,
                 (i) =>
                 {
-                    sDepthData[i] = 0;
-                    bgDepthData[i] = 0;
-                    fgDepthData[i] = 0;
+                    sDepthData[i] = KinectUtility.MaxDepthDistance;
+                    bgDepthData[i] = KinectUtility.MaxDepthDistance;
+                    fgDepthData[i] = KinectUtility.MaxDepthDistance;
                 }
             );
 
@@ -162,8 +167,8 @@ namespace Managed_Kinect
                         this.ImageL2.Source = BitmapSourceConvert.ToBitmapSource(this.depth_image);
                     }
                     this.DFPS.Content = KinectUtility.CalculateDepthFrameRate().ToString();
-                    //depth_image.Save("c:\\Users\\elderlab\\sittingd\\test-" + imgname.ToString() + ".png");
-                    //this.imgname++;
+                    depth_image.Save("c:\\Users\\elderlab\\sittingd\\test-" + imgname.ToString() + ".png");
+                    imgname++;
                 }
 
             }
@@ -239,11 +244,10 @@ namespace Managed_Kinect
 
                     if (dSmootherFlag)
                     {
-                        if (depth > 0)
-                        {
-                            sDepthData[d_i] = (short)((alpha * depth + (1 - alpha) * sDepthData[d_i]));
 
-                        }
+
+                            sDepthData[d_i] = (ushort)((alpha * depth + (1 - alpha) * sDepthData[d_i]));
+
                         dsPixels[d_i] = KinectUtility.getDepthBGBytes(sDepthData[d_i]);
                     }
                     else if (dSubtractionFlag)
@@ -253,13 +257,13 @@ namespace Managed_Kinect
                             if (bgDepthData[d_i] - depth > 64)
                             {
                                 // Foreground
-                                fgDepthData[d_i] = depth;
+                                fgDepthData[d_i] = (ushort)depth;
                                 bgDepthData[d_i] = bgDepthData[d_i];
                             }
                             else
                             {
                                 fgDepthData[d_i] = 0;
-                                bgDepthData[d_i] = (short)((alpha * depth + (1 - alpha) * bgDepthData[d_i]));
+                                bgDepthData[d_i] = (ushort)((alpha * depth + (1 - alpha) * bgDepthData[d_i]));
                             }
                         }
                         fgPixels[d_i] = KinectUtility.getDepthBGBytes(fgDepthData[d_i]);
@@ -288,8 +292,8 @@ namespace Managed_Kinect
 
         private void button_cv_Click(object sender, RoutedEventArgs e)
         {
-            //var displayMap = new PlanarMap();
-            //displayMap.Show();
+            var displayMap = new PlanarMap();
+            displayMap.Show();
             //this.thread = new Thread(ProcessImage);
             //thread.Start();
         }

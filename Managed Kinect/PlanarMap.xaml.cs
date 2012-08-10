@@ -22,5 +22,11 @@ namespace Managed_Kinect
         {
             InitializeComponent();
         }
+
+        private void Window_Loaded(object sender, RoutedEventArgs e)
+        {
+           
+        }
+
     }
 }

@@ -53,6 +53,11 @@ namespace Managed_Kinect
             return lastFrameRate;
         }
 
+        public static byte getDepthBGBytes(ushort depth)
+        {
+            return (byte)(0xFF - (0xFF * Math.Max(depth - MinDepthDistance, 0) / (MaxDepthDistanceOffset)));
+        }
+
         public static byte getDepthBGBytes(short depth)
         {
             return (byte)(0xFF - (0xFF * Math.Max(depth - MinDepthDistance, 0) / (MaxDepthDistanceOffset)));
